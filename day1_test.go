@@ -6,8 +6,8 @@ import (
 	. "github.com/onsi/gomega"
 	"math"
 	"regexp"
-	"strings"
 	"strconv"
+	"strings"
 )
 
 type Coordinates struct {
@@ -20,10 +20,9 @@ var SOUTH = Coordinates{0, -1}
 var WEST = Coordinates{-1, 0}
 var pathSegmentRe = regexp.MustCompile("([LR])([0-9]+)")
 
-
 type Position struct {
 	location Coordinates
-	heading Coordinates
+	heading  Coordinates
 }
 
 func NewPosition() *Position {
@@ -46,17 +45,25 @@ func (self *Position) turn(direction string) {
 	switch direction {
 	case "L":
 		switch self.heading {
-		case NORTH: self.heading = WEST
-		case WEST: self.heading = SOUTH
-		case SOUTH: self.heading = EAST
-		default: self.heading = NORTH
+		case NORTH:
+			self.heading = WEST
+		case WEST:
+			self.heading = SOUTH
+		case SOUTH:
+			self.heading = EAST
+		default:
+			self.heading = NORTH
 		}
 	default:
 		switch self.heading {
-		case NORTH: self.heading = EAST
-		case EAST: self.heading = SOUTH
-		case SOUTH: self.heading = WEST
-		default: self.heading = NORTH
+		case NORTH:
+			self.heading = EAST
+		case EAST:
+			self.heading = SOUTH
+		case SOUTH:
+			self.heading = WEST
+		default:
+			self.heading = NORTH
 		}
 	}
 }
@@ -69,7 +76,6 @@ func (self *Position) walk(distance uint) {
 func (self Position) taxicabGeometry() uint {
 	return uint(math.Abs(float64(self.location.x)) + math.Abs(float64(self.location.y)))
 }
-
 
 type GridPath struct {
 	path string
@@ -86,7 +92,6 @@ func (self GridPath) distance() uint {
 	}
 	return position.taxicabGeometry()
 }
-
 
 var _ = Describe("Day1", func() {
 	Describe("Position", func() {
@@ -137,7 +142,6 @@ var _ = Describe("Day1", func() {
 			})
 		})
 	})
-
 
 	Describe("GridPath", func() {
 		Describe("#distance", func() {
