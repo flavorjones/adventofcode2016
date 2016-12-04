@@ -1940,6 +1940,7 @@ var _ = Describe("Day3", func() {
   613  402  520
   401  211  328
   725  312  215`
+
 		triangle_specs := strings.Split(puzzle_dump, "\n")
 		triangle_sides := make([][]uint, len(triangle_specs))
 		for j, triangle_spec := range triangle_specs {
@@ -1959,7 +1960,24 @@ var _ = Describe("Day3", func() {
 					possible += 1
 				}
 			}
-			fmt.Println("there are this many possible: ", possible)
+			fmt.Println("horiz there are this many possible: ", possible)
+		})
+
+		It("star 2", func() {
+			possible := 0
+			for j := 0; j < 3 ; j++ {
+				for k := 0; k < len(triangle_sides)-2 ; k += 3 {
+					triangle := Triangle{
+						triangle_sides[k][j],
+						triangle_sides[k+1][j],
+						triangle_sides[k+2][j],
+					}
+					if triangle.valid() {
+						possible += 1
+					}
+				}
+			}
+			fmt.Println("vert there are this many possible: ", possible)
 		})
 	})
 })
