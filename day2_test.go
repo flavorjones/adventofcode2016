@@ -8,14 +8,14 @@ import (
 
 
 type KeyPad struct {
-	buttons [][]int
+	buttons [][]string
 	position Coordinates // 0, 0 is upper-left (y is inverted)
 }
 
-var phoneKeyPadLayout = [][]int{
-	[]int{1, 2, 3},
-	[]int{4, 5, 6},
-	[]int{7, 8, 9},
+var phoneKeyPadLayout = [][]string{
+	[]string{"1", "2", "3"},
+	[]string{"4", "5", "6"},
+	[]string{"7", "8", "9"},
 }
 var phoneKeyPadStart = Coordinates{1, 1}
 
@@ -42,19 +42,19 @@ func (self *KeyPad) move(move byte) {
 	}
 }
 
-func (self KeyPad) number() int {
+func (self KeyPad) number() string {
 	return self.buttons[self.position.y][self.position.x]
 }
 
-func (self *KeyPad) code(instructions []string) []int {
-	numbers := make([]int, len(instructions))
+func (self *KeyPad) code(instructions []string) []string {
+	code := make([]string, len(instructions))
 	for j, instruction := range instructions {
 		for _, move := range []byte(instruction) {
 			self.move(move)
 		}
-		numbers[j] = self.number()
+		code[j] = self.number()
 	}
-	return numbers
+	return code
 }
 
 
@@ -69,7 +69,7 @@ var _ = Describe("Day2", func() {
 				"LURDL",
 				"UUUUD",
 			}
-			Expect(keypad.code(instructions)).To(Equal([]int{1, 9, 8, 5}))
+			Expect(keypad.code(instructions)).To(Equal([]string{"1", "9", "8", "5"}))
 		})
 	})
 
