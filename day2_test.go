@@ -6,9 +6,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-
 type KeyPad struct {
-	buttons [][]string
+	buttons  [][]string
 	position Coordinates // 0, 0 is upper-left (y is inverted)
 }
 
@@ -19,25 +18,40 @@ var phoneKeyPadLayout = [][]string{
 }
 var phoneKeyPadStart = Coordinates{1, 1}
 
-var keyPadMoveMap = map[byte]Coordinates {
+func NewPhoneKeyPad() *KeyPad {
+	return &KeyPad{phoneKeyPadLayout, phoneKeyPadStart}
+}
+
+var starKeyPadLayout = [][]string{
+	[]string{"", "", "1", "", ""},
+	[]string{"", "2", "3", "4", ""},
+	[]string{"5", "6", "7", "8", "9"},
+	[]string{"", "A", "B", "C", ""},
+	[]string{"", "", "D", "", ""},
+}
+var starKeyPadStart = Coordinates{0, 2}
+
+func NewStarKeyPad() *KeyPad {
+	return &KeyPad{starKeyPadLayout, starKeyPadStart}
+}
+
+var keyPadMoveMap = map[byte]Coordinates{
 	"U"[0]: Coordinates{0, -1},
 	"R"[0]: Coordinates{1, 0},
 	"D"[0]: Coordinates{0, 1},
 	"L"[0]: Coordinates{-1, 0},
 }
 
-func NewKeyPad() *KeyPad {
-	return &KeyPad{phoneKeyPadLayout, phoneKeyPadStart}
-}
-
 func (self *KeyPad) move(move byte) {
 	direction := keyPadMoveMap[move]
 
-	if self.position.x += direction.x ; self.position.x < 0 || self.position.x >= len(self.buttons[0]) {
+	self.position.x += direction.x
+	if self.position.x < 0 || self.position.x >= len(self.buttons[0]) || self.number() == "" {
 		self.position.x -= direction.x
 	}
 
-	if self.position.y += direction.y ; self.position.y < 0 || self.position.y >= len(self.buttons) {
+	self.position.y += direction.y
+	if self.position.y < 0 || self.position.y >= len(self.buttons) || self.number() == "" {
 		self.position.y -= direction.y
 	}
 }
@@ -57,12 +71,10 @@ func (self *KeyPad) code(instructions []string) []string {
 	return code
 }
 
-
-
 var _ = Describe("Day2", func() {
 	Describe("KeyPad", func() {
 		It("follows instructions and emits a code", func() {
-			keypad := NewKeyPad()
+			keypad := NewPhoneKeyPad()
 			instructions := []string{
 				"ULL",
 				"RRDDD",
@@ -71,9 +83,20 @@ var _ = Describe("Day2", func() {
 			}
 			Expect(keypad.code(instructions)).To(Equal([]string{"1", "9", "8", "5"}))
 		})
+
+		It("follows instructions and emits a code", func() {
+			keypad := NewStarKeyPad()
+			instructions := []string{
+				"ULL",
+				"RRDDD",
+				"LURDL",
+				"UUUUD",
+			}
+			Expect(keypad.code(instructions)).To(Equal([]string{"5", "D", "B", "3"}))
+		})
 	})
 
-	Describe("star 1", func() {
+	Describe("the puzzle", func() {
 		instructions := []string{
 			"DDDURLURURUDLDURRURULLRRDULRRLRLRURDLRRDUDRUDLRDUUDRRUDLLLURLUURLRURURLRLUDDURUULDURDRUUDLLDDDRLDUULLUDURRLUULUULDLDDULRLDLURURUULRURDULLLURLDRDULLULRRRLRLRULLULRULUUULRLLURURDLLRURRUUUDURRDLURUURDDLRRLUURLRRULURRDDRDULLLDRDDDDURURLLULDDULLRLDRLRRDLLURLRRUDDDRDLLRUDLLLLRLLRUDDLUUDRLRRRDRLRDLRRULRUUDUUDULLRLUDLLDDLLDLUDRURLULDLRDDLDRUDLDDLDDDRLLDUURRUUDLLULLRLDLUURRLLDRDLRRRRUUUURLUUUULRRUDDUDDRLDDURLRLRLLRRUDRDLRLDRRRRRRUDDURUUUUDDUDUDU",
 			"RLULUULRDDRLULRDDLRDUURLRUDDDUULUUUDDRDRRRLDUURDURDRLLLRDDRLURLDRRDLRLUURULUURDRRULRULDULDLRRDDRLDRUDUDDUDDRULURLULUDRDUDDDULRRRURLRRDLRDLDLLRLUULURLDRURRRLLURRRRRLLULRRRDDLRLDDUULDLLRDDRLLUUDRURLRULULRLRUULUUUUUDRURLURLDDUDDLRDDLDRRLDLURULUUDRDLULLURDLLLRRDRURUDDURRLURRDURURDLRUDRULUULLDRLRRDRLDDUDRDLLRURURLUDUURUULDURUDULRLRDLDURRLLDRDUDRUDDRLRURUDDLRRDLLLDULRRDRDRRRLURLDLURRDULDURUUUDURLDLRURRDRULLDDLLLRUULLLLURRRLLLDRRUDDDLURLRRRDRLRDLUUUDDRULLUULDURLDUUURUDRURUDRDLRRLDRURRLRDDLLLULUDDUULDURLRUDRDDD",
@@ -82,8 +105,13 @@ var _ = Describe("Day2", func() {
 			"UULLULRUULUUUUDDRULLRLDDLRLDDLULURDDLULURDRULUURDLLUDDLDRLUDLLRUURRUDRLDRDDRRLLRULDLLRUUULLLDLDDULDRLRURLDRDUURLURDRUURUULURLRLRRURLDDDLLDDLDDDULRUDLURULLDDRLDLUDURLLLLLRULRRLLUDRUURLLURRLLRDRLLLRRDDDRRRDLRDRDUDDRLLRRDRLRLDDDLURUUUUULDULDRRRRLUDRLRDRUDUDDRULDULULDRUUDUULLUDULRLRRURDLDDUDDRDULLUURLDRDLDDUURULRDLUDDLDURUDRRRDUDRRDRLRLULDRDRLRLRRUDLLLDDDRURDRLRUDRRDDLDRRLRRDLUURLRDRRUDRRDLDDDLRDDLRDUUURRRUULLDDDLLRLDRRLLDDRLRRRLUDLRURULLDULLLUDLDLRLLDDRDRUDLRRDDLUU",
 		}
 
-		It("solution", func() {
-			keypad := NewKeyPad()				
+		It("star 1", func() {
+			keypad := NewPhoneKeyPad()
+			fmt.Println(keypad.code(instructions))
+		})
+
+		It("star 2", func() {
+			keypad := NewStarKeyPad()
 			fmt.Println(keypad.code(instructions))
 		})
 	})
