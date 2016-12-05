@@ -4,8 +4,8 @@ import (
 	"fmt"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"strings"
 	"strconv"
+	"strings"
 )
 
 type Triangle struct {
@@ -13,7 +13,7 @@ type Triangle struct {
 }
 
 func (self Triangle) valid() bool {
-	return self.a + self.b > self.c && self.a + self.c > self.b && self.b + self.c > self.a
+	return self.a+self.b > self.c && self.a+self.c > self.b && self.b+self.c > self.a
 }
 
 var _ = Describe("Day3", func() {
@@ -1946,7 +1946,7 @@ var _ = Describe("Day3", func() {
 		for j, triangle_spec := range triangle_specs {
 			triangle_sides[j] = make([]uint, 3)
 			length_strings := strings.Fields(triangle_spec)
-			for k := 0 ; k < 3 ; k++ {
+			for k := 0; k < 3; k++ {
 				length, _ := strconv.ParseUint(length_strings[k], 10, 64)
 				triangle_sides[j][k] = uint(length)
 			}
@@ -1965,8 +1965,8 @@ var _ = Describe("Day3", func() {
 
 		It("star 2", func() {
 			possible := 0
-			for j := 0; j < 3 ; j++ {
-				for k := 0; k < len(triangle_sides)-2 ; k += 3 {
+			for j := 0; j < 3; j++ {
+				for k := 0; k < len(triangle_sides)-2; k += 3 {
 					triangle := Triangle{
 						triangle_sides[k][j],
 						triangle_sides[k+1][j],
