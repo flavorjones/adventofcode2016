@@ -57,6 +57,17 @@ func (d RepetitionDecoder) decode() string {
 	return string(decodedMessage)
 }
 
+func (d RepetitionDecoder) decode2() string {
+	distribution := d.calculateFrequencyDistribution()
+	decodedMessage := ""
+
+	for _, components := range distribution {
+		decodedMessage += string(components[len(components)-1].element)
+	}
+
+	return string(decodedMessage)
+}
+
 var _ = Describe("Day6", func() {
 	var parseFile = func(filename string) []string {
 		data, _ := ioutil.ReadFile(filename)
@@ -71,6 +82,12 @@ var _ = Describe("Day6", func() {
 				Expect(RepetitionDecoder{messages}.decode()).To(Equal("easter"))
 			})
 		})
+
+		Describe("#decode2", func() {
+			It("decodes properly", func() {
+				Expect(RepetitionDecoder{messages}.decode2()).To(Equal("advent"))
+			})
+		})
 	})
 
 	Describe("RepetitionDecoder", func() {
@@ -79,6 +96,12 @@ var _ = Describe("Day6", func() {
 		Describe("star 1", func() {
 			It("finds the answer", func() {
 				fmt.Println("star 1:", RepetitionDecoder{messages}.decode())
+			})
+		})
+
+		Describe("star 2", func() {
+			It("finds the answer", func() {
+				fmt.Println("star 2:", RepetitionDecoder{messages}.decode2())
 			})
 		})
 	})
