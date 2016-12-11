@@ -5,6 +5,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"io/ioutil"
+	"math"
 	"regexp"
 	"sort"
 	"strconv"
@@ -65,7 +66,7 @@ func (r Room) nameChecksum() string {
 	// build a map
 	byteCount := make(map[byte]uint)
 	for _, char := range []byte(r.name()) {
-		if char != "-"[0] {
+		if char != roomNameIgnore {
 			if current, ok := byteCount[char]; ok {
 				byteCount[char] = current + 1
 			} else {
@@ -87,6 +88,22 @@ func (r Room) nameChecksum() string {
 		rval = append(rval, component.element)
 	}
 	return string(rval[0:5])
+}
+
+func (r Room) decryptedName() string {
+	name := r.name()
+	sectorID := r.sectorID()
+	zero := "a"[0]
+	decryptedName := make([]byte, len(name))
+	for j := 0; j < len(name); j++ {
+		if name[j] == roomNameIgnore {
+			decryptedName[j] = " "[0]
+		} else {
+			decryptedName[j] = byte(math.Mod(float64(int(name[j]-zero)+sectorID),
+				float64(26))) + zero
+		}
+	}
+	return string(decryptedName)
 }
 
 var _ = Describe("Day4", func() {
@@ -131,11 +148,19 @@ var _ = Describe("Day4", func() {
 				Expect(room4.describedChecksum()).To(Equal("decoy"))
 			})
 		})
+
+		Describe("#decrypted", func() {
+			It("decrypts properly", func() {
+				Expect(NewRoom("qzmt-zixmtkozy-ivhz-343[asdf]").decryptedName()).
+					To(Equal("very encrypted name"))
+			})
+		})
 	})
 
 	Describe("the puzzle", func() {
+		data, _ := ioutil.ReadFile("day4.txt")
+
 		It("star 1", func() {
-			data, _ := ioutil.ReadFile("day4.txt")
 			sum := 0
 			for _, line := range strings.Split(string(data), "\n") {
 				if blankStringRe.MatchString(line) {
@@ -146,6 +171,20 @@ var _ = Describe("Day4", func() {
 				}
 			}
 			fmt.Println("sum is ", sum)
+		})
+
+		It("star 2", func() {
+			for _, line := range strings.Split(string(data), "\n") {
+				if blankStringRe.MatchString(line) {
+					continue
+				}
+				if room := NewRoom(line); room.valid() {
+					decrypted := room.decryptedName()
+					if match, _ := regexp.Match("pole", []byte(decrypted)); match {
+						fmt.Println(room.decryptedName(), room.sectorID())
+					}
+				}
+			}
 		})
 	})
 })
