@@ -13,10 +13,9 @@ type RepetitionDecoder struct {
 	messages []string
 }
 
-func (d RepetitionDecoder) decode() string {
+func (d RepetitionDecoder) calculateFrequencyDistribution() []SortableNameComponents {
 	messageLen := len(d.messages[0])
 	counts := make([]map[byte]uint, messageLen)
-	decodedMessage := make([]byte, messageLen)
 
 	for j := 0; j < messageLen; j++ {
 		counts[j] = make(map[byte]uint)
@@ -33,6 +32,7 @@ func (d RepetitionDecoder) decode() string {
 		}
 	}
 
+	distribution := make([]SortableNameComponents, messageLen)
 	for j := 0; j < messageLen; j++ {
 		// convert to an array of SortableNameComponent (from day 4)
 		count := counts[j]
@@ -41,7 +41,17 @@ func (d RepetitionDecoder) decode() string {
 			components = append(components, SortableNameComponent{element, occurrences})
 		}
 		sort.Sort(components)
-		decodedMessage[j] = components[0].element
+		distribution[j] = components
+	}
+	return distribution
+}
+
+func (d RepetitionDecoder) decode() string {
+	distribution := d.calculateFrequencyDistribution()
+	decodedMessage := ""
+
+	for _, components := range distribution {
+		decodedMessage += string(components[0].element)
 	}
 
 	return string(decodedMessage)
