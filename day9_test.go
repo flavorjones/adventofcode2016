@@ -30,7 +30,6 @@ func (ef ExpFormat) Decompress() string {
 	content := bytes.NewBufferString(ef.content)
 	decompressed := bytes.Buffer{}
 
-	jbyte := 0
 	for {
 		byte, err := content.ReadByte()
 		if err == io.EOF {
@@ -50,8 +49,6 @@ func (ef ExpFormat) Decompress() string {
 		} else {
 			decompressed.WriteByte(byte)
 		}
-
-		jbyte++
 	}
 
 	rval := decompressed.String()
