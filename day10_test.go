@@ -115,7 +115,7 @@ func (bm *BotMaster) CreateBots() {
 			botNum, _ := strconv.Atoi(match[1])
 			distributionRule := createDistributionRule(match)
 
-			if (len(bm.bots) <= botNum) {
+			if len(bm.bots) <= botNum {
 				bigger := make([]Bot, botNum+1)
 				copy(bigger, bm.bots)
 				bm.bots = bigger
