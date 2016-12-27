@@ -6,6 +6,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -46,7 +47,26 @@ func (rtfm RTFMicrochip) String() string {
 	return fmt.Sprintf("%.2s-%.2s", rtfm.Element(), rtfm.Artifact())
 }
 
-type RTFConfig [][]RTFArtifact
+type RTFArtifacts []RTFArtifact
+type RTFConfig []RTFArtifacts
+
+func (c RTFArtifacts) Len() int      { return len(c) }
+func (c RTFArtifacts) Swap(j, k int) { c[j], c[k] = c[k], c[j] }
+func (c RTFArtifacts) Less(j, k int) bool {
+	if c[j].Element() == c[k].Element() {
+		return c[j].Artifact() < c[k].Artifact()
+	}
+	return c[j].Element() < c[k].Element()
+}
+
+func NewRTFConfig(config ...RTFArtifacts) RTFConfig {
+	rtfc := make(RTFConfig, len(config))
+	for j, _ := range rtfc {
+		rtfc[j] = config[j]
+		sort.Sort(rtfc[j])
+	}
+	return rtfc
+}
 
 func (rtfc RTFConfig) String() string {
 	var output bytes.Buffer
@@ -115,10 +135,86 @@ func (rtf *RadioisotopeTestingFacility) ok() bool {
 	return true
 }
 
-func RTFTripPlan(config []RTFConfig) []RTFConfig {
-	
+type RTFHistory []RadioisotopeTestingFacility
+type RTFPermutations []RadioisotopeTestingFacility
+
+func elevatorPermutations(nElements int) [][]int {
+	rval := [][]int{}
+	for j := 0; j < nElements; j++ {
+		rval = append(rval, []int{j})
+		for k := j + 1; k < nElements; k++ {
+			rval = append(rval, []int{j, k})
+		}
+	}
+	return rval
 }
 
+func (rtf RadioisotopeTestingFacility) Permutations() RTFPermutations {
+	permutations := RTFPermutations{}
+
+	for _, indexPermutation := range elevatorPermutations(len(rtf.config[rtf.ePos])) {
+		artifacts := RTFArtifacts{}
+		for _, index := range indexPermutation {
+			artifacts = append(artifacts, rtf.config[rtf.ePos][index])
+		}
+
+		modifiedFloor := make(RTFArtifacts, len(rtf.config[rtf.ePos]))
+		copy(modifiedFloor, rtf.config[rtf.ePos])
+
+		for j := len(indexPermutation) - 1; j >= 0; j-- {
+			index := indexPermutation[j]
+			if index < len(modifiedFloor)-1 {
+				modifiedFloor = append(
+					modifiedFloor[:index],
+					modifiedFloor[index+1:]...,
+				)
+			} else {
+				modifiedFloor = modifiedFloor[:index]
+			}
+		}
+
+		if rtf.ePos > 0 {
+			newPos := rtf.ePos - 1
+			permutation := NewRTFConfig(rtf.config...)
+			permutation[newPos] = append(permutation[newPos], artifacts...)
+			permutation[rtf.ePos] = modifiedFloor
+			permutations = append(permutations,
+				RadioisotopeTestingFacility{permutation, newPos})
+		}
+
+		if rtf.ePos < len(rtf.config)-1 {
+			newPos := rtf.ePos + 1
+			permutation := NewRTFConfig(rtf.config...)
+			permutation[newPos] = append(permutation[newPos], artifacts...)
+			permutation[rtf.ePos] = modifiedFloor
+			permutations = append(permutations,
+				RadioisotopeTestingFacility{permutation, newPos})
+		}
+	}
+
+	return permutations
+}
+
+func (rtf RadioisotopeTestingFacility) ValidPermutations() RTFPermutations {
+	permutations := rtf.Permutations()
+	validPermutations := make(RTFPermutations, 0, len(permutations))
+	for j, _ := range permutations {
+		if permutations[j].ok() {
+			validPermutations = append(validPermutations, permutations[j])
+		}
+	}
+	return validPermutations
+}
+
+func RTFTripPlanImpl(stateHistory RTFHistory) (RTFHistory, bool) {
+	return append(stateHistory, NewRadioisotopeTestingFacility(RTFConfig{})), true
+}
+
+func RTFTripPlan(config RTFConfig) []RadioisotopeTestingFacility {
+	history := RTFHistory{NewRadioisotopeTestingFacility(config)}
+	history, _ = RTFTripPlanImpl(history)
+	return history
+}
 
 var _ = Describe("Day11", func() {
 	testData := `The first floor contains a hydrogen-compatible microchip and a lithium-compatible microchip.
@@ -127,7 +223,7 @@ The third floor contains a lithium generator.
 The fourth floor contains nothing relevant.`
 	testSetup := strings.Split(string(testData), "\n")
 
-	Describe("RTFG", func() {
+	Describe("RTFGenerator", func() {
 		rtfg := RTFGenerator{"polonium"}
 
 		Describe("#Element()", func() {
@@ -143,7 +239,7 @@ The fourth floor contains nothing relevant.`
 		})
 	})
 
-	Describe("RTFM", func() {
+	Describe("RTFMicrochip", func() {
 		rtfg := RTFMicrochip{"polonium"}
 
 		Describe("#Element()", func() {
@@ -156,6 +252,24 @@ The fourth floor contains nothing relevant.`
 			It("returns the string 'microchip'", func() {
 				Expect(rtfg.Artifact()).To(Equal("microchip"))
 			})
+		})
+	})
+
+	Describe("NewRTFConfig()", func() {
+		It("creates a new config in canonical (sorted) order", func() {
+			actual := NewRTFConfig(
+				RTFArtifacts{RTFGenerator{"a"}, RTFMicrochip{"a"}},
+				RTFArtifacts{RTFMicrochip{"b"}, RTFGenerator{"z"}, RTFGenerator{"b"}},
+				RTFArtifacts{RTFMicrochip{"z"}, RTFMicrochip{"a"}},
+				RTFArtifacts{RTFGenerator{"z"}, RTFGenerator{"a"}},
+			)
+			canonical := RTFConfig{
+				RTFArtifacts{RTFGenerator{"a"}, RTFMicrochip{"a"}},
+				RTFArtifacts{RTFGenerator{"b"}, RTFMicrochip{"b"}, RTFGenerator{"z"}},
+				RTFArtifacts{RTFMicrochip{"a"}, RTFMicrochip{"z"}},
+				RTFArtifacts{RTFGenerator{"a"}, RTFGenerator{"z"}},
+			}
+			Expect(actual).To(Equal(canonical))
 		})
 	})
 
@@ -172,7 +286,7 @@ The fourth floor contains nothing relevant.`
 		})
 	})
 
-	Describe("RTF", func() {
+	Describe("RadioisotopeTestingFacility", func() {
 		Describe("#ok", func() {
 			Context("all chips are with their generators", func() {
 				rtf := NewRadioisotopeTestingFacility(RTFConfig{
@@ -211,6 +325,189 @@ The fourth floor contains nothing relevant.`
 				It("is not ok", func() {
 					Expect(rtf.ok()).To(BeFalse())
 				})
+			})
+		})
+
+		Describe("#Permutations", func() {
+			It("returns all possible next-steps", func() {
+				initial := RadioisotopeTestingFacility{
+					NewRTFConfig(
+						RTFArtifacts{},
+						RTFArtifacts{RTFMicrochip{"a"}, RTFMicrochip{"b"}, RTFMicrochip{"c"}},
+						RTFArtifacts{},
+						RTFArtifacts{},
+					), 1}
+
+				permutations := RTFPermutations{
+					RadioisotopeTestingFacility{
+						NewRTFConfig(
+							RTFArtifacts{RTFMicrochip{"a"}},
+							RTFArtifacts{RTFMicrochip{"b"}, RTFMicrochip{"c"}},
+							RTFArtifacts{},
+							RTFArtifacts{},
+						), 0},
+					RadioisotopeTestingFacility{
+						NewRTFConfig(
+							RTFArtifacts{},
+							RTFArtifacts{RTFMicrochip{"b"}, RTFMicrochip{"c"}},
+							RTFArtifacts{RTFMicrochip{"a"}},
+							RTFArtifacts{},
+						), 2},
+
+					RadioisotopeTestingFacility{
+						NewRTFConfig(
+							RTFArtifacts{RTFMicrochip{"a"}, RTFMicrochip{"b"}},
+							RTFArtifacts{RTFMicrochip{"c"}},
+							RTFArtifacts{},
+							RTFArtifacts{},
+						), 0},
+					RadioisotopeTestingFacility{
+						NewRTFConfig(
+							RTFArtifacts{},
+							RTFArtifacts{RTFMicrochip{"c"}},
+							RTFArtifacts{RTFMicrochip{"a"}, RTFMicrochip{"b"}},
+							RTFArtifacts{},
+						), 2},
+
+					RadioisotopeTestingFacility{
+						NewRTFConfig(
+							RTFArtifacts{RTFMicrochip{"a"}, RTFMicrochip{"c"}},
+							RTFArtifacts{RTFMicrochip{"b"}},
+							RTFArtifacts{},
+							RTFArtifacts{},
+						), 0},
+					RadioisotopeTestingFacility{
+						NewRTFConfig(
+							RTFArtifacts{},
+							RTFArtifacts{RTFMicrochip{"b"}},
+							RTFArtifacts{RTFMicrochip{"a"}, RTFMicrochip{"c"}},
+							RTFArtifacts{},
+						), 2},
+
+					RadioisotopeTestingFacility{
+						NewRTFConfig(
+							RTFArtifacts{RTFMicrochip{"b"}},
+							RTFArtifacts{RTFMicrochip{"a"}, RTFMicrochip{"c"}},
+							RTFArtifacts{},
+							RTFArtifacts{},
+						), 0},
+					RadioisotopeTestingFacility{
+						NewRTFConfig(
+							RTFArtifacts{},
+							RTFArtifacts{RTFMicrochip{"a"}, RTFMicrochip{"c"}},
+							RTFArtifacts{RTFMicrochip{"b"}},
+							RTFArtifacts{},
+						), 2},
+
+					RadioisotopeTestingFacility{
+						NewRTFConfig(
+							RTFArtifacts{RTFMicrochip{"b"}, RTFMicrochip{"c"}},
+							RTFArtifacts{RTFMicrochip{"a"}},
+							RTFArtifacts{},
+							RTFArtifacts{},
+						), 0},
+					RadioisotopeTestingFacility{
+						NewRTFConfig(
+							RTFArtifacts{},
+							RTFArtifacts{RTFMicrochip{"a"}},
+							RTFArtifacts{RTFMicrochip{"b"}, RTFMicrochip{"c"}},
+							RTFArtifacts{},
+						), 2},
+					RadioisotopeTestingFacility{
+						NewRTFConfig(
+							RTFArtifacts{RTFMicrochip{"c"}},
+							RTFArtifacts{RTFMicrochip{"a"}, RTFMicrochip{"b"}},
+							RTFArtifacts{},
+							RTFArtifacts{},
+						), 0},
+					RadioisotopeTestingFacility{
+						NewRTFConfig(
+							RTFArtifacts{},
+							RTFArtifacts{RTFMicrochip{"a"}, RTFMicrochip{"b"}},
+							RTFArtifacts{RTFMicrochip{"c"}},
+							RTFArtifacts{},
+						), 2},
+				}
+
+				actual := initial.Permutations()
+				Expect(len(actual)).To(Equal(len(permutations)))
+				Expect(actual).To(ConsistOf(permutations))
+			})
+		})
+
+		Describe("#ValidPermutations", func() {
+			It("returns all valid next-steps", func() {
+				initial := RadioisotopeTestingFacility{
+					NewRTFConfig(
+						RTFArtifacts{},
+						RTFArtifacts{RTFMicrochip{"a"}, RTFGenerator{"a"}, RTFMicrochip{"c"}},
+						RTFArtifacts{},
+						RTFArtifacts{},
+					), 1}
+
+				permutations := RTFPermutations{
+					RadioisotopeTestingFacility{
+						NewRTFConfig(
+							RTFArtifacts{RTFMicrochip{"a"}, RTFGenerator{"a"}},
+							RTFArtifacts{RTFMicrochip{"c"}},
+							RTFArtifacts{},
+							RTFArtifacts{},
+						), 0},
+					RadioisotopeTestingFacility{
+						NewRTFConfig(
+							RTFArtifacts{RTFGenerator{"a"}},
+							RTFArtifacts{RTFMicrochip{"a"}, RTFMicrochip{"c"}},
+							RTFArtifacts{},
+							RTFArtifacts{},
+						), 0},
+					RadioisotopeTestingFacility{
+						NewRTFConfig(
+							RTFArtifacts{},
+							RTFArtifacts{RTFMicrochip{"c"}},
+							RTFArtifacts{RTFMicrochip{"a"}, RTFGenerator{"a"}},
+							RTFArtifacts{},
+						), 2},
+					RadioisotopeTestingFacility{
+						NewRTFConfig(
+							RTFArtifacts{},
+							RTFArtifacts{RTFMicrochip{"a"}, RTFMicrochip{"c"}},
+							RTFArtifacts{RTFGenerator{"a"}},
+							RTFArtifacts{},
+						), 2},
+
+					RadioisotopeTestingFacility{
+						NewRTFConfig(
+							RTFArtifacts{RTFMicrochip{"c"}},
+							RTFArtifacts{RTFGenerator{"a"}, RTFMicrochip{"a"}},
+							RTFArtifacts{},
+							RTFArtifacts{},
+						), 0},
+
+					RadioisotopeTestingFacility{
+						NewRTFConfig(
+							RTFArtifacts{RTFMicrochip{"a"}, RTFMicrochip{"c"}},
+							RTFArtifacts{RTFGenerator{"a"}},
+							RTFArtifacts{},
+							RTFArtifacts{},
+						), 0},
+					RadioisotopeTestingFacility{
+						NewRTFConfig(
+							RTFArtifacts{},
+							RTFArtifacts{RTFGenerator{"a"}},
+							RTFArtifacts{RTFMicrochip{"a"}, RTFMicrochip{"c"}},
+							RTFArtifacts{},
+						), 2},
+					RadioisotopeTestingFacility{
+						NewRTFConfig(
+							RTFArtifacts{},
+							RTFArtifacts{RTFMicrochip{"a"}, RTFGenerator{"a"}},
+							RTFArtifacts{RTFMicrochip{"c"}},
+							RTFArtifacts{},
+						), 2},
+				}
+
+				actual := initial.ValidPermutations()
+				Expect(actual).To(ConsistOf(permutations))
 			})
 		})
 	})
