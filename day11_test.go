@@ -5,6 +5,7 @@ import (
 	"fmt"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -44,7 +45,7 @@ func (rtfm RTFMicrochip) Artifact() string {
 }
 
 func (rtfm RTFMicrochip) String() string {
-	return fmt.Sprintf("%.2s-%.2s", rtfm.Element(), rtfm.Artifact())
+	return fmt.Sprintf("%.2s-%.1s", rtfm.Element(), rtfm.Artifact())
 }
 
 type RTFArtifacts []RTFArtifact
@@ -59,12 +60,33 @@ func (c RTFArtifacts) Less(j, k int) bool {
 	return c[j].Element() < c[k].Element()
 }
 
-func NewRTFConfig(config ...RTFArtifacts) RTFConfig {
-	rtfc := make(RTFConfig, len(config))
+func (c RTFArtifacts) Remove(artifacts RTFArtifacts) RTFArtifacts {
+	var rval RTFArtifacts
+original:
+	for _, original := range c {
+		for _, artifact := range artifacts {
+			if reflect.DeepEqual(original, artifact) {
+				continue original
+			}
+		}
+		rval = append(rval, original)
+	}
+	return rval
+}
+
+func (rtfc RTFConfig) Canonicalize() {
 	for j, _ := range rtfc {
-		rtfc[j] = config[j]
 		sort.Sort(rtfc[j])
 	}
+}
+
+func NewRTFConfig(config ...RTFArtifacts) RTFConfig {
+	rtfc := make(RTFConfig, len(config))
+	for j, _ := range config {
+		rtfc[j] = make(RTFArtifacts, len(config[j]))
+		copy(rtfc[j], config[j])
+	}
+	rtfc.Canonicalize()
 	return rtfc
 }
 
@@ -100,6 +122,38 @@ func RTFConfigRead(setup []string) RTFConfig {
 type RadioisotopeTestingFacility struct {
 	config RTFConfig
 	ePos   int
+}
+
+func (rtf RadioisotopeTestingFacility) String() string {
+	var output bytes.Buffer
+	output.WriteString("\n")
+	for floor := len(rtf.config) - 1; floor >= 0; floor-- {
+		var indicator string
+		if rtf.ePos == floor {
+			indicator = "*"
+		} else {
+			indicator = " "
+		}
+		output.WriteString(fmt.Sprintf("     f(%d): %s %s\n", floor+1, indicator, rtf.config[floor]))
+	}
+	return output.String()
+}
+
+func (rtf RadioisotopeTestingFacility) Equals(rhs RadioisotopeTestingFacility) bool {
+	if rtf.ePos != rhs.ePos || len(rtf.config) != len(rhs.config) {
+		return false
+	}
+	for j, _ := range rtf.config {
+		if len(rtf.config[j]) != len(rhs.config[j]) {
+			return false
+		}
+		for k, _ := range rtf.config[j] {
+			if rtf.config[j][k] != rhs.config[j][k] {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func NewRadioisotopeTestingFacility(config RTFConfig) RadioisotopeTestingFacility {
@@ -138,6 +192,15 @@ func (rtf *RadioisotopeTestingFacility) ok() bool {
 type RTFHistory []RadioisotopeTestingFacility
 type RTFPermutations []RadioisotopeTestingFacility
 
+func (rtfh RTFHistory) Contains(state RadioisotopeTestingFacility) bool {
+	for _, rtf := range rtfh {
+		if state.Equals(rtf) {
+			return true
+		}
+	}
+	return false
+}
+
 func elevatorPermutations(nElements int) [][]int {
 	rval := [][]int{}
 	for j := 0; j < nElements; j++ {
@@ -158,37 +221,24 @@ func (rtf RadioisotopeTestingFacility) Permutations() RTFPermutations {
 			artifacts = append(artifacts, rtf.config[rtf.ePos][index])
 		}
 
-		modifiedFloor := make(RTFArtifacts, len(rtf.config[rtf.ePos]))
-		copy(modifiedFloor, rtf.config[rtf.ePos])
-
-		for j := len(indexPermutation) - 1; j >= 0; j-- {
-			index := indexPermutation[j]
-			if index < len(modifiedFloor)-1 {
-				modifiedFloor = append(
-					modifiedFloor[:index],
-					modifiedFloor[index+1:]...,
-				)
-			} else {
-				modifiedFloor = modifiedFloor[:index]
-			}
-		}
-
 		if rtf.ePos > 0 {
 			newPos := rtf.ePos - 1
-			permutation := NewRTFConfig(rtf.config...)
-			permutation[newPos] = append(permutation[newPos], artifacts...)
-			permutation[rtf.ePos] = modifiedFloor
+			permutedConfig := NewRTFConfig(rtf.config...)
+			permutedConfig[newPos] = append(permutedConfig[newPos], artifacts...)
+			permutedConfig[rtf.ePos] = permutedConfig[rtf.ePos].Remove(artifacts)
+			permutedConfig.Canonicalize()
 			permutations = append(permutations,
-				RadioisotopeTestingFacility{permutation, newPos})
+				RadioisotopeTestingFacility{permutedConfig, newPos})
 		}
 
 		if rtf.ePos < len(rtf.config)-1 {
 			newPos := rtf.ePos + 1
-			permutation := NewRTFConfig(rtf.config...)
-			permutation[newPos] = append(permutation[newPos], artifacts...)
-			permutation[rtf.ePos] = modifiedFloor
+			permutedConfig := NewRTFConfig(rtf.config...)
+			permutedConfig[newPos] = append(permutedConfig[newPos], artifacts...)
+			permutedConfig[rtf.ePos] = permutedConfig[rtf.ePos].Remove(artifacts)
+			permutedConfig.Canonicalize()
 			permutations = append(permutations,
-				RadioisotopeTestingFacility{permutation, newPos})
+				RadioisotopeTestingFacility{permutedConfig, newPos})
 		}
 	}
 
@@ -206,14 +256,46 @@ func (rtf RadioisotopeTestingFacility) ValidPermutations() RTFPermutations {
 	return validPermutations
 }
 
-func RTFTripPlanImpl(stateHistory RTFHistory) (RTFHistory, bool) {
-	return append(stateHistory, NewRadioisotopeTestingFacility(RTFConfig{})), true
+func (rtf RadioisotopeTestingFacility) done() bool {
+	rtfc := rtf.config
+	return len(rtfc[0]) == 0 &&
+		len(rtfc[1]) == 0 &&
+		len(rtfc[2]) == 0 &&
+		len(rtfc[3]) > 0
+}
+
+func RTFTripPlanImpl(stateHistory RTFHistory, maxDepth int) (RTFHistory, bool) {
+	current := stateHistory[len(stateHistory)-1]
+	permutations := current.ValidPermutations()
+	for _, permutation := range permutations {
+		if stateHistory.Contains(permutation) {
+			continue
+		}
+		if permutation.done() {
+			return append(stateHistory, permutation), true
+		}
+
+		if len(stateHistory) < maxDepth {
+			fullStateHistory, ok := RTFTripPlanImpl(append(stateHistory, permutation), maxDepth)
+			if ok {
+				return fullStateHistory, true
+			}
+		}
+	}
+
+	return stateHistory, false
 }
 
 func RTFTripPlan(config RTFConfig) []RadioisotopeTestingFacility {
-	history := RTFHistory{NewRadioisotopeTestingFacility(config)}
-	history, _ = RTFTripPlanImpl(history)
-	return history
+	// omg so inefficient, I'm embarassed but I'm ready to move onto the next puzzle.
+	for depth := 1; ; depth++ {
+		fmt.Println("MIKE: ---------- depth", depth, "----------")
+		start := RTFHistory{NewRadioisotopeTestingFacility(config)}
+		win, done := RTFTripPlanImpl(start, depth)
+		if done {
+			return win
+		}
+	}
 }
 
 var _ = Describe("Day11", func() {
@@ -287,6 +369,42 @@ The fourth floor contains nothing relevant.`
 	})
 
 	Describe("RadioisotopeTestingFacility", func() {
+		Describe("#done", func() {
+			Context("everything's not on the fourth floor", func() {
+				It("returns false", func() {
+					rtf := NewRadioisotopeTestingFacility(RTFConfig{
+						[]RTFArtifact{RTFGenerator{"a"}, RTFMicrochip{"a"}},
+						[]RTFArtifact{RTFGenerator{"b"}, RTFMicrochip{"b"}},
+						[]RTFArtifact{RTFGenerator{"c"}, RTFMicrochip{"c"}, RTFGenerator{"d"}, RTFMicrochip{"d"}},
+						[]RTFArtifact{},
+					})
+					Expect(rtf.done()).To(BeFalse())
+				})
+
+				It("returns false", func() {
+					rtf := NewRadioisotopeTestingFacility(RTFConfig{
+						[]RTFArtifact{RTFGenerator{"a"}},
+						[]RTFArtifact{},
+						[]RTFArtifact{},
+						[]RTFArtifact{RTFGenerator{"b"}},
+					})
+					Expect(rtf.done()).To(BeFalse())
+				})
+			})
+
+			Context("everything IS on the fourth floor", func() {
+				It("returns true", func() {
+					rtf := NewRadioisotopeTestingFacility(RTFConfig{
+						[]RTFArtifact{},
+						[]RTFArtifact{},
+						[]RTFArtifact{},
+						[]RTFArtifact{RTFGenerator{"a"}, RTFGenerator{"b"}},
+					})
+					Expect(rtf.done()).To(BeTrue())
+				})
+			})
+		})
+
 		Describe("#ok", func() {
 			Context("all chips are with their generators", func() {
 				rtf := NewRadioisotopeTestingFacility(RTFConfig{
@@ -512,20 +630,98 @@ The fourth floor contains nothing relevant.`
 		})
 	})
 
+	Describe("RTFHistory / RTFPermutations", func() {
+		Describe("#Contains", func() {
+			history := RTFHistory{
+				RadioisotopeTestingFacility{
+					NewRTFConfig(
+						RTFArtifacts{RTFMicrochip{"a"}, RTFMicrochip{"c"}},
+						RTFArtifacts{RTFGenerator{"a"}},
+						RTFArtifacts{},
+						RTFArtifacts{},
+					), 0},
+				RadioisotopeTestingFacility{
+					NewRTFConfig(
+						RTFArtifacts{},
+						RTFArtifacts{RTFGenerator{"a"}},
+						RTFArtifacts{RTFMicrochip{"a"}, RTFMicrochip{"c"}},
+						RTFArtifacts{},
+					), 2},
+			}
+
+			Context("history contains the thing", func() {
+				It("returns true", func() {
+					Expect(history.Contains(
+						RadioisotopeTestingFacility{
+							NewRTFConfig(
+								RTFArtifacts{},
+								RTFArtifacts{RTFGenerator{"a"}},
+								RTFArtifacts{RTFMicrochip{"a"}, RTFMicrochip{"c"}},
+								RTFArtifacts{},
+							), 2})).To(BeTrue())
+					Expect(history.Contains(
+						RadioisotopeTestingFacility{
+							NewRTFConfig(
+								RTFArtifacts{RTFMicrochip{"a"}, RTFMicrochip{"c"}},
+								RTFArtifacts{RTFGenerator{"a"}},
+								RTFArtifacts{},
+								RTFArtifacts{},
+							), 0})).To(BeTrue())
+				})
+			})
+
+			Context("history does not contain the thing", func() {
+				Context("because it has a different ePos", func() {
+					state := RadioisotopeTestingFacility{
+						NewRTFConfig(
+							RTFArtifacts{},
+							RTFArtifacts{RTFGenerator{"a"}},
+							RTFArtifacts{RTFMicrochip{"a"}, RTFMicrochip{"c"}},
+							RTFArtifacts{},
+						), 1}
+
+					It("returns false", func() {
+						Expect(history.Contains(state)).To(BeFalse())
+					})
+				})
+
+				Context("because it has a different config", func() {
+					state := RadioisotopeTestingFacility{
+						NewRTFConfig(
+							RTFArtifacts{},
+							RTFArtifacts{RTFGenerator{"c"}},
+							RTFArtifacts{RTFMicrochip{"a"}, RTFMicrochip{"c"}},
+							RTFArtifacts{},
+						), 2}
+
+					It("returns false", func() {
+						Expect(history.Contains(state)).To(BeFalse())
+					})
+				})
+			})
+		})
+	})
+
 	Describe("the test", func() {
 		It("finds a solution", func() {
 			config := RTFConfigRead(testSetup)
 			solution := RTFTripPlan(config)
-			Expect(len(solution)).To(Equal(11))
+			Expect(len(solution)-1).To(Equal(11))
 		})
 	})
 
-	// 	Describe("the puzzle", func() {
-	// 		data := `The first floor contains a polonium generator, a thulium generator, a thulium-compatible microchip, a promethium generator, a ruthenium generator, a ruthenium-compatible microchip, a cobalt generator, and a cobalt-compatible microchip.
-	// The second floor contains a polonium-compatible microchip and a promethium-compatible microchip.
-	// The third floor contains nothing relevant.
-	// The fourth floor contains nothing relevant.`
-	// 		setup := strings.Split(string(data), "\n")
-
-	// 	})
+	Describe("the puzzle", func() {
+		data := `The first floor contains a polonium generator, a thulium generator, a thulium-compatible microchip, a promethium generator, a ruthenium generator, a ruthenium-compatible microchip, a cobalt generator, and a cobalt-compatible microchip.
+	The second floor contains a polonium-compatible microchip and a promethium-compatible microchip.
+	The third floor contains nothing relevant.
+	The fourth floor contains nothing relevant.`
+		setup := strings.Split(string(data), "\n")
+		
+		It("finds a solution", func() {
+			config := RTFConfigRead(setup)
+			solution := RTFTripPlan(config)
+			fmt.Println("MIKE: solution is", solution)
+			fmt.Println("MIKE: took", len(solution)-1, "steps")
+		})
+	})
 })
