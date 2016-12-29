@@ -1,18 +1,34 @@
 require 'rspec'
-require 'pp'
+require 'ruby-prof'
+require 'set'
+
+def Profile &block
+  if ENV["PROFILE"]
+    result = RubyProf.profile(&block)
+    printer = RubyProf::CallStackPrinter.new(result)
+    printer.print(File.open("day11_callstack.html", "w"))
+  else
+    block.call
+  end
+end
+
 
 class RTFA # RadioisotopeTestingFacility Artifact
   include Comparable
 
-  attr :element, :artifact_type
+  MICROCHIP = :microchip
+  GENERATOR = :generator
+
+  attr :element, :artifact_type, :hashable
 
   def initialize element, artifact_type
-    @element = element
-    @artifact_type = artifact_type
+    @element = element.to_sym
+    @artifact_type = artifact_type.to_sym
+    @hashable = [element, artifact_type]
   end
 
   def <=> other
-    [element, artifact_type] <=> [other.element, other.artifact_type]
+    @hashable <=> other.hashable
   end
 
   def to_s
@@ -24,17 +40,12 @@ class RTFA # RadioisotopeTestingFacility Artifact
   end
 
   def match? other
-    if artifact_type == "microchip"
-      return false if other.artifact_type == "microchip"
-      return other.element == element
-    else
-      return false if other.artifact_type == "generator"
-      return other.element == element
-    end
+    return false if artifact_type == other.artifact_type
+    return other.element == element
   end
 
   def hash
-    [element, artifact_type].hash
+    @hash ||= @hashable.hash
   end
 end
 
@@ -44,7 +55,7 @@ end
 
 module RTFG # RadioisotopeTestingFacility Generator
   def self.new element
-    RTFA.new element, "generator"
+    RTFA.new element, RTFA::GENERATOR
   end
 end
 
@@ -54,7 +65,7 @@ end
 
 module RTFM # RadioisotopeTestingFacility Microchip
   def self.new element
-    RTFA.new element, "microchip"
+    RTFA.new element, RTFA::MICROCHIP
   end
 end
 
@@ -78,11 +89,13 @@ class RTF # RadioisotopeTestingFacility
     new floors: floors
   end
 
-  attr :floors, :elevator_pos
+  attr :floors, :elevator_pos, :hashable
 
-  def initialize floors: [[],[],[],[]], elevator_pos: 0
-    @floors = floors.map(&:sort)
+  def initialize floors: [[],[],[],[]], elevator_pos: 0, sorted: false
+    @floors = floors
+    floors.map!(&:sort) unless sorted
     @elevator_pos = elevator_pos
+    @hashable = [elevator_pos, floors]
   end
 
   def to_s
@@ -100,11 +113,12 @@ class RTF # RadioisotopeTestingFacility
   def valid?
     floors.each do |floor|
       floor.each do |artifact|
-        next if artifact.artifact_type == "generator"
+        next if artifact.artifact_type == RTFA::GENERATOR
         next if floor.any? { |other| artifact.match?(other) }
-        return false if floor.any? { |other| other.artifact_type == "generator" }
+        return false if floor.any? { |other| other.artifact_type == RTFA::GENERATOR }
       end
     end
+    true
   end
 
   def permutations
@@ -116,16 +130,20 @@ class RTF # RadioisotopeTestingFacility
           new_floors = floors.map(&:dup)
           new_elevator_pos = elevator_pos - 1
           new_floors[elevator_pos] -= artifacts
+          new_floors[elevator_pos].sort!
           new_floors[new_elevator_pos] += artifacts
-          permutations << RTF.new(floors: new_floors, elevator_pos: new_elevator_pos)
+          new_floors[new_elevator_pos].sort!
+          permutations << RTF.new(floors: new_floors, elevator_pos: new_elevator_pos, sorted: true)
         end
 
         if elevator_pos < floors.length-1
           new_floors = floors.map(&:dup)
           new_elevator_pos = elevator_pos + 1
           new_floors[elevator_pos] -= artifacts
+          new_floors[elevator_pos].sort!
           new_floors[new_elevator_pos] += artifacts
-          permutations << RTF.new(floors: new_floors, elevator_pos: new_elevator_pos)
+          new_floors[new_elevator_pos].sort!
+          permutations << RTF.new(floors: new_floors, elevator_pos: new_elevator_pos, sorted: true)
         end
       end
     end
@@ -136,15 +154,15 @@ class RTF # RadioisotopeTestingFacility
   end
 
   def <=> other
-    [elevator_pos, floors] <=> [other.elevator_pos, other.floors]
+    @hashable <=> other.hashable
   end
 
   def eql? other
-    self.hash == other.hash
+    hash == other.hash
   end
 
   def hash
-    @hash ||= [elevator_pos, floors].hash # cached
+    @hash ||= @hashable.hash # cached
   end
 
   def done?
@@ -153,31 +171,29 @@ class RTF # RadioisotopeTestingFacility
 end
 
 class RTFTrip
-  attr :history
-
   def initialize start
-    @history = [[start]]
+    @start = start
   end
 
   def solution_length
+    all_permutations = Set.new
+    all_permutations.add @start
+    current_generation = [@start]
+    jgen = 0
+
     loop do
-      current_generation = history[-1]
-
       next_generation = current_generation.map do |rtf|
-        rtf.valid_permutations
-      end.flatten.uniq.sort
+        rtf.valid_permutations.reject { |p| all_permutations.include?(p) }
+      end.flatten.uniq
 
-      history.each do |generation|
-        next_generation -= generation
-      end
-
-      puts "MIKE: gen #{history.length} has #{next_generation.length} new permutations"
-      # next_generation.each { |x| puts x.inspect } # DEBUG
-
+      puts "MIKE: gen #{jgen} has #{next_generation.length} new permutations"
       break if current_generation.any?(&:done?)
-      history << next_generation
+
+      next_generation.each { |p| all_permutations.add p }
+      current_generation = next_generation
+      jgen += 1
     end
-    history.length - 1
+    jgen
   end
 end
 
@@ -385,12 +401,16 @@ describe RTF do
 
   describe "the described test" do
     it "finds a solution" do
-      rtf = RTF.new_from_description description
-      expect(RTFTrip.new(rtf).solution_length).to eq(11)
+      Profile do
+        rtf = RTF.new_from_description description
+        expect(RTFTrip.new(rtf).solution_length).to eq(11)
+      end
     end
   end
+end
 
-  describe "the puzzle" do
+describe "the puzzle" do
+  describe "star 1" do
     let :description do
       <<~EOD
         The first floor contains a polonium generator, a thulium generator, a thulium-compatible microchip, a promethium generator, a ruthenium generator, a ruthenium-compatible microchip, a cobalt generator, and a cobalt-compatible microchip.
@@ -400,7 +420,26 @@ describe RTF do
       EOD
     end
 
-    it "star 1" do
+    it do
+      Profile do
+        rtf = RTF.new_from_description description
+        solution_length = RTFTrip.new(rtf).solution_length
+        puts "star 1 solution length #{solution_length}"
+      end
+    end
+  end
+
+  describe "star 2" do
+    let :description do
+      <<~EOD
+        The first floor contains a polonium generator, a thulium generator, a thulium-compatible microchip, a promethium generator, a ruthenium generator, a ruthenium-compatible microchip, a cobalt generator, a cobalt-compatible microchip, an elerium generator, an elerium-compatible microchip, a dilithium generator, and a dilithium-compatible microchip.
+      	The second floor contains a polonium-compatible microchip and a promethium-compatible microchip.
+      	The third floor contains nothing relevant.
+      	The fourth floor contains nothing relevant.
+      EOD
+    end
+
+    it do
       rtf = RTF.new_from_description description
       solution_length = RTFTrip.new(rtf).solution_length
       puts "star 1 solution length #{solution_length}"
