@@ -32,6 +32,10 @@ class RTFA # RadioisotopeTestingFacility Artifact
       return other.element == element
     end
   end
+
+  def hash
+    [element, artifact_type].hash
+  end
 end
 
 def RTFG *args
@@ -89,7 +93,7 @@ class RTF # RadioisotopeTestingFacility
       output << "F#{j}: #{elevator_eh ? "*" : " "} #{floor.join(', ')}"
       j -= 1
     end
-    output << ""
+    output << "\n"
     output.join("\n")
   end
 
@@ -116,7 +120,7 @@ class RTF # RadioisotopeTestingFacility
           permutations << RTF.new(floors: new_floors, elevator_pos: new_elevator_pos)
         end
 
-        if elevator_pos < floors.length
+        if elevator_pos < floors.length-1
           new_floors = floors.map(&:dup)
           new_elevator_pos = elevator_pos + 1
           new_floors[elevator_pos] -= artifacts
@@ -134,36 +138,45 @@ class RTF # RadioisotopeTestingFacility
   def <=> other
     [elevator_pos, floors] <=> [other.elevator_pos, other.floors]
   end
-end
 
+  def eql? other
+    (self <=> other) == 0
+  end
 
-describe RTFA do
-  describe "#match?" do
-    context "for a microchip" do
-      context "compared to a microchip" do
-        it { expect(RTFM.new("a").match?(RTFM.new("a"))).to be_falsey }
-        it { expect(RTFM.new("a").match?(RTFM.new("b"))).to be_falsey }
-      end
+  def hash
+    [elevator_pos, floors].hash
+  end
 
-      context "compared to a generator" do
-        it { expect(RTFM.new("a").match?(RTFG.new("a"))).to be_truthy }
-        it { expect(RTFM.new("a").match?(RTFG.new("b"))).to be_falsey }
-      end
-    end
-
-    context "for a generator" do
-      context "compared to a generator" do
-        it { expect(RTFG.new("a").match?(RTFG.new("a"))).to be_falsey }
-        it { expect(RTFG.new("a").match?(RTFG.new("b"))).to be_falsey }
-      end
-
-      context "compared to a microchip" do
-        it { expect(RTFG.new("a").match?(RTFM.new("a"))).to be_truthy }
-        it { expect(RTFG.new("a").match?(RTFM.new("b"))).to be_falsey }
-      end
-    end
+  def done?
+    floors[-1].length > 0 && floors[0...-1].all?(&:empty?)
   end
 end
+
+class RTFTrip
+  attr :history
+
+  def initialize start
+    @history = [[start]]
+  end
+
+  def solution_length
+    loop do
+      current_generation = history[-1]
+
+      next_generation = current_generation.map do |rtf|
+        rtf.valid_permutations
+      end.flatten.uniq.sort
+
+      puts "MIKE: gen #{history.length} has #{next_generation.length} permutations"
+      # next_generation.each { |x| puts x.inspect } # DEBUG
+
+      break if current_generation.any?(&:done?)
+      history << next_generation
+    end
+    history.length - 1
+  end
+end
+
 
 describe RTF do
   let :description do
@@ -173,6 +186,34 @@ describe RTF do
       The third floor contains a lithium generator.
       The fourth floor contains nothing relevant.
     EOD
+  end
+
+  describe RTFA do
+    describe "#match?" do
+      context "for a microchip" do
+        context "compared to a microchip" do
+          it { expect(RTFM.new("a").match?(RTFM.new("a"))).to be_falsey }
+          it { expect(RTFM.new("a").match?(RTFM.new("b"))).to be_falsey }
+        end
+
+        context "compared to a generator" do
+          it { expect(RTFM.new("a").match?(RTFG.new("a"))).to be_truthy }
+          it { expect(RTFM.new("a").match?(RTFG.new("b"))).to be_falsey }
+        end
+      end
+
+      context "for a generator" do
+        context "compared to a generator" do
+          it { expect(RTFG.new("a").match?(RTFG.new("a"))).to be_falsey }
+          it { expect(RTFG.new("a").match?(RTFG.new("b"))).to be_falsey }
+        end
+
+        context "compared to a microchip" do
+          it { expect(RTFG.new("a").match?(RTFM.new("a"))).to be_truthy }
+          it { expect(RTFG.new("a").match?(RTFM.new("b"))).to be_falsey }
+        end
+      end
+    end
   end
 
   describe ".new_from_description" do
@@ -229,6 +270,7 @@ describe RTF do
         F3:   li-g
         F2:   hy-g
         F1: * hy-m, li-m
+
       EOS
     end
   end
@@ -302,6 +344,62 @@ describe RTF do
       actual = initial.valid_permutations
 
       expect(actual).to match_array(expected)
+    end
+  end
+
+  describe "hash" do
+    it "returns the same thing for similarly-structure RTFs" do
+      rtf1 = RTF.new(floors: [[RTFM("c"), RTFM("a")], [], [RTFG("a")], [RTFG("c")]], elevator_pos: 2)
+      rtf2 = RTF.new(floors: [[RTFM("c"), RTFM("a")], [], [RTFG("a")], [RTFG("c")]], elevator_pos: 2)
+      expect(rtf1.hash).to eq(rtf2.hash)
+    end
+  end
+
+  describe "eql?" do
+    it "returns true for similary-structured RTFs" do
+      rtf1 = RTF.new(floors: [[RTFM("c"), RTFM("a")], [], [RTFG("a")], [RTFG("c")]], elevator_pos: 2)
+      rtf2 = RTF.new(floors: [[RTFM("c"), RTFM("a")], [], [RTFG("a")], [RTFG("c")]], elevator_pos: 2)
+      expect(rtf1.eql?(rtf2)).to be(true)
+    end
+  end
+
+  describe "#done?" do
+    context "all artifacts are on the top floor" do
+      it "returns true" do
+        expect(RTF.new(floors: [[], [], [], [RTFM("a"), RTFG("a")]]).done?).to be_truthy
+      end
+    end
+
+    context "some artifacts are not on the top floor" do
+      it "returns false" do
+        expect(RTF.new(floors: [[], [], [RTFM("b")], [RTFM("a"), RTFG("a")]]).done?).to be_falsey
+        expect(RTF.new(floors: [[], [RTFM("b")], [], [RTFM("a"), RTFG("a")]]).done?).to be_falsey
+        expect(RTF.new(floors: [[RTFM("b")], [], [], [RTFM("a"), RTFG("a")]]).done?).to be_falsey
+      end
+    end
+  end
+
+  describe "the described test" do
+    it "finds a solution" do
+      rtf = RTF.new_from_description description
+      expect(RTFTrip.new(rtf).solution_length).to eq(11)
+    end
+  end
+
+  describe "the puzzle" do
+    let :description do
+      <<~EOD
+        The first floor contains a polonium generator, a thulium generator, a thulium-compatible microchip, a promethium generator, a ruthenium generator, a ruthenium-compatible microchip, a cobalt generator, and a cobalt-compatible microchip.
+      	The second floor contains a polonium-compatible microchip and a promethium-compatible microchip.
+      	The third floor contains nothing relevant.
+      	The fourth floor contains nothing relevant.
+      EOD
+    end
+
+    it "star 1" do
+      rtf = RTF.new_from_description description
+      solution_length = RTFTrip.new(rtf).solution_length
+      puts "star 1 solution length #{solution_length}"
     end
   end
 end
