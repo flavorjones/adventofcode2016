@@ -140,11 +140,11 @@ class RTF # RadioisotopeTestingFacility
   end
 
   def eql? other
-    (self <=> other) == 0
+    self.hash == other.hash
   end
 
   def hash
-    [elevator_pos, floors].hash
+    @hash ||= [elevator_pos, floors].hash # cached
   end
 
   def done?
@@ -167,7 +167,11 @@ class RTFTrip
         rtf.valid_permutations
       end.flatten.uniq.sort
 
-      puts "MIKE: gen #{history.length} has #{next_generation.length} permutations"
+      history.each do |generation|
+        next_generation -= generation
+      end
+
+      puts "MIKE: gen #{history.length} has #{next_generation.length} new permutations"
       # next_generation.each { |x| puts x.inspect } # DEBUG
 
       break if current_generation.any?(&:done?)
