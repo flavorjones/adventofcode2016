@@ -13,23 +13,33 @@ var _ = fmt.Sprintf
 type KeyGenerator struct {
 	salt         string
 	stretch      int
-	foundKeys    map[int]int // ordinal → index
-//	cachedHashes map[int][]byte
+	foundKeys    map[int]int    // ordinal → index
+	cachedHashes map[int][]byte // index → md5
 }
 
 func NewKeyGenerator(salt string) *KeyGenerator {
-	return &KeyGenerator{salt, 0, make(map[int]int)}
+	return &KeyGenerator{salt, 0, make(map[int]int), make(map[int][]byte)}
 }
 
 func NewStretchedKeyGenerator(salt string) *KeyGenerator {
-	return &KeyGenerator{salt, 2016, make(map[int]int)}
+	return &KeyGenerator{salt, 2016, make(map[int]int), make(map[int][]byte)}
 }
 
-func (kg *KeyGenerator) Hash(index int) []byte {
+func (kg *KeyGenerator) calculateHash(index int) []byte {
 	value := kg.salt + strconv.Itoa(index)
 	hash := []byte(fmt.Sprintf("%x", md5.Sum([]byte(value))))
 	for j := 0; j < kg.stretch; j++ {
 		hash = []byte(fmt.Sprintf("%x", md5.Sum(hash)))
+	}
+	return hash
+}
+
+func (kg *KeyGenerator) Hash(index int) []byte {
+	// read-through cache
+	hash, ok := kg.cachedHashes[index]
+	if !ok {
+		hash = kg.calculateHash(index)
+		kg.cachedHashes[index] = hash
 	}
 	return hash
 }
@@ -56,12 +66,13 @@ func (kg *KeyGenerator) calculateKey(position int) int {
 }
 
 func (kg *KeyGenerator) Key(position int) int {
-	// this is a read-through cache
+	// read-through cache
 	value, ok := kg.foundKeys[position]
 	if !ok {
 		value = kg.calculateKey(position) // will recurse if necessary
 		kg.foundKeys[position] = value
 	}
+	// fmt.Printf("MIKE: found %dth index: %d\n", position, value)
 	return value
 }
 
@@ -69,7 +80,7 @@ func (kg *KeyGenerator) Key(position int) int {
 // utility methods
 
 func any3Repeat(hash []byte) (bool, byte) {
-	fmt.Printf("MIKE: looking for 3 repeats in %s\n", hash)
+	//  fmt.Printf("MIKE: looking for 3 repeats in %s\n", hash)
 	for j := 0; j < len(hash)-2; j++ {
 		if hash[j] == hash[j+1] && hash[j] == hash[j+2] {
 			return true, hash[j]
@@ -126,6 +137,13 @@ var _ = Describe("Day14", func() {
 		Describe("star 1", func() {
 			It("finds the 64th key", func() {
 				index := NewKeyGenerator("qzyelonm").Key(64)
+				fmt.Println("star 1: 64th keys index is", index)
+			})
+		})
+
+		Describe("star 2", func() {
+			It("finds the 64th key", func() {
+				index := NewStretchedKeyGenerator("qzyelonm").Key(64)
 				fmt.Println("star 1: 64th keys index is", index)
 			})
 		})
