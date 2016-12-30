@@ -706,7 +706,7 @@ The fourth floor contains nothing relevant.`
 		It("finds a solution", func() {
 			config := RTFConfigRead(testSetup)
 			solution := RTFTripPlan(config)
-			Expect(len(solution)-1).To(Equal(11))
+			Expect(len(solution) - 1).To(Equal(11))
 		})
 	})
 
@@ -716,7 +716,7 @@ The fourth floor contains nothing relevant.`
 	The third floor contains nothing relevant.
 	The fourth floor contains nothing relevant.`
 		setup := strings.Split(string(data), "\n")
-		
+
 		It("finds a solution", func() {
 			config := RTFConfigRead(setup)
 			solution := RTFTripPlan(config)
