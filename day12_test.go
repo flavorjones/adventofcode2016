@@ -311,16 +311,20 @@ var _ = Describe("Day12", func() {
 		`)
 
 		Describe("star 1", func() {
-			ap := NewAssembunnyProcessor()
-			ap.Run(instructions)
-			fmt.Println("star 1: register 'a' is", ap.a)
+			It("doesn't halt", func() {
+				ap := NewAssembunnyProcessor()
+				ap.Run(instructions)
+				fmt.Println("star 1: register 'a' is", ap.a)
+			})
 		})
 
 		Describe("star 2", func() {
-			ap := NewAssembunnyProcessor()
-			ap.Run("cpy 1 c")
-			ap.Run(instructions)
-			fmt.Println("star 2: register 'a' is", ap.a)
+			It("doesn't halt", func() {
+				ap := NewAssembunnyProcessor()
+				ap.Run("cpy 1 c")
+				ap.Run(instructions)
+				fmt.Println("star 2: register 'a' is", ap.a)
+			})
 		})
 	})
 })
