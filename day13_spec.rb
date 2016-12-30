@@ -48,7 +48,7 @@ class MazeSolver
     @finish = finish
   end
 
-  def solution_length
+  def solution_length stop_after = 0
     visited_positions = Set.new
     visited_positions.add start
     current_step = [start]
@@ -61,13 +61,21 @@ class MazeSolver
         adjacent_spaces(step).reject { |p| visited_positions.include? p }
       end.flatten.uniq
 
-      # puts "MIKE: gen #{steps} has #{next_step.length} new permutations"
-      break if next_step.any? { |p| p == finish }
+      if stop_after == 0
+        break if next_step.any? { |p| p == finish }
+      else
+        break if steps > stop_after
+      end
 
       next_step.each { |p| visited_positions.add p }
       current_step = next_step
     end
-    steps
+
+    if stop_after == 0
+      steps
+    else
+      visited_positions.length
+    end
   end
 
   def adjacent_spaces position
@@ -135,12 +143,20 @@ describe MazeSolver do
 end
 
 describe "the puzzle" do
+  let(:maze)   { Maze.new 1364 }
+  let(:solver) { MazeSolver.new maze, Position(1, 1), Position(31, 39) }
+
   describe "star 1" do
     it do
-      maze = Maze.new 1364
-      solver = MazeSolver.new maze, Position(1, 1), Position(31, 39)
       length = solver.solution_length
       puts "star 1: solution takes #{length} steps"
+    end
+  end
+
+  describe "star 2" do
+    it do
+      n = solver.solution_length 50
+      puts "star 2: considered #{n} positions"
     end
   end
 end
