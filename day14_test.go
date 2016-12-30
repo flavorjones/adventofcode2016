@@ -11,17 +11,27 @@ import (
 var _ = fmt.Sprintf
 
 type KeyGenerator struct {
-	salt      string
-	foundKeys map[int]int // ordinal → index
+	salt         string
+	stretch      int
+	foundKeys    map[int]int // ordinal → index
+//	cachedHashes map[int][]byte
 }
 
 func NewKeyGenerator(salt string) *KeyGenerator {
-	return &KeyGenerator{salt, make(map[int]int)}
+	return &KeyGenerator{salt, 0, make(map[int]int)}
+}
+
+func NewStretchedKeyGenerator(salt string) *KeyGenerator {
+	return &KeyGenerator{salt, 2016, make(map[int]int)}
 }
 
 func (kg *KeyGenerator) Hash(index int) []byte {
 	value := kg.salt + strconv.Itoa(index)
-	return []byte(fmt.Sprintf("%x", md5.Sum([]byte(value))))
+	hash := []byte(fmt.Sprintf("%x", md5.Sum([]byte(value))))
+	for j := 0; j < kg.stretch; j++ {
+		hash = []byte(fmt.Sprintf("%x", md5.Sum(hash)))
+	}
+	return hash
 }
 
 func (kg *KeyGenerator) calculateKey(position int) int {
@@ -29,7 +39,7 @@ func (kg *KeyGenerator) calculateKey(position int) int {
 	if position == 1 {
 		start = 0
 	} else {
-		start = kg.Key(position - 1) + 1
+		start = kg.Key(position-1) + 1
 	}
 
 	for j := start; ; j++ {
@@ -59,7 +69,7 @@ func (kg *KeyGenerator) Key(position int) int {
 // utility methods
 
 func any3Repeat(hash []byte) (bool, byte) {
-	// fmt.Printf("MIKE: looking for 3 repeats in %s\n", hash)
+	fmt.Printf("MIKE: looking for 3 repeats in %s\n", hash)
 	for j := 0; j < len(hash)-2; j++ {
 		if hash[j] == hash[j+1] && hash[j] == hash[j+2] {
 			return true, hash[j]
@@ -69,7 +79,7 @@ func any3Repeat(hash []byte) (bool, byte) {
 }
 
 func specific5Repeat(hash []byte, char byte) bool {
-	// fmt.Printf("MIKE: looking for 5 repeats of %c in %s\n", char, hash)
+	//	fmt.Printf("MIKE: looking for 5 repeats of %c in %s\n", char, hash)
 	for j := 0; j < len(hash)-4; j++ {
 		if hash[j] == char &&
 			hash[j] == hash[j+1] &&
@@ -87,16 +97,28 @@ func specific5Repeat(hash []byte, char byte) bool {
 
 var _ = Describe("Day14", func() {
 	Describe("KeyGenerator", func() {
-		It("generates the first based on a salt", func() {
-			Expect(NewKeyGenerator("abc").Key(1)).To(Equal(39))
+		Context("single hash", func() {
+			It("generates the first based on a salt", func() {
+				Expect(NewKeyGenerator("abc").Key(1)).To(Equal(39))
+			})
+
+			It("generates the second key based on a salt, implicitly calculating previous", func() {
+				Expect(NewKeyGenerator("abc").Key(2)).To(Equal(92))
+			})
+
+			It("scales", func() {
+				Expect(NewKeyGenerator("abc").Key(64)).To(Equal(22728))
+			})
 		})
 
-		It("generates the second key based on a salt, implicitly calculating previous", func() {
-			Expect(NewKeyGenerator("abc").Key(2)).To(Equal(92))
-		})
+		Context("stretched", func() {
+			It("generates the first based on a salt", func() {
+				Expect(NewStretchedKeyGenerator("abc").Key(1)).To(Equal(10))
+			})
 
-		It("scales", func() {
-			Expect(NewKeyGenerator("abc").Key(64)).To(Equal(22728))
+			It("scales", func() {
+				Expect(NewStretchedKeyGenerator("abc").Key(64)).To(Equal(22551))
+			})
 		})
 	})
 
