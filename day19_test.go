@@ -33,7 +33,7 @@ one_left:
 				if bit, _ := elves.GetBit(jnext_elf); bit {
 					continue
 				}
-//				fmt.Printf("MIKE: %d takes from %d, leaving %d\n", jelf+1, jnext_elf+1, n_elves-1)
+				//				fmt.Printf("MIKE: %d takes from %d, leaving %d\n", jelf+1, jnext_elf+1, n_elves-1)
 				elves.SetBit(jnext_elf)
 				n_elves--
 				break
@@ -67,7 +67,7 @@ func compressIntSlice(slice []int) []int {
 	}
 
 	k := hole
-	for j := hole+1; j < len(slice); j++ {
+	for j := hole + 1; j < len(slice); j++ {
 		if slice[j] != -1 {
 			slice[k] = slice[j]
 			k++
@@ -82,7 +82,7 @@ func (wep *WhiteElephantParty) winner2() int {
 
 	// populate the array with elf numbers
 	for j := 0; j < int(wep.n_elves); j++ {
-		elves[j] = j+1
+		elves[j] = j + 1
 	}
 
 	previous_elf := 0
@@ -93,7 +93,7 @@ func (wep *WhiteElephantParty) winner2() int {
 		if elves[jelf] == -1 {
 			elves = compressIntSlice(elves)
 			buffer = 0
-			
+
 			// reset jelf pointer to the right place
 			for j := 0; j < len(elves); j++ {
 				if elves[j] == previous_elf {
