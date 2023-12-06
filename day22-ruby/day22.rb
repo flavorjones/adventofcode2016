@@ -58,11 +58,29 @@ class Grid
       a.used > 0 && a.used <= b.avail
     end
   end
+
+  def inspect
+    @nodes.map do |row|
+      row.map do |node|
+        if node.x == 0 && node.y == 0
+          "x"
+        elsif node.x == @width - 1 && node.y == 0
+          "G"
+        elsif node.used == 0
+          "_"
+        elsif node.used > 100
+          "#"
+        else
+          "."
+        end
+      end.join
+    end.join("\n")
+  end
 end
 
 if ARGV[0] != "run"
   require "minitest/autorun"
-  
+
   module Minitest::Assertions
     def assert_includes_exactly(expected, actual)
       assert_equal(expected.size, actual.size)
@@ -108,7 +126,7 @@ if ARGV[0] != "run"
       /dev/grid/node-x2-y3    502T  490T    12T   97%
     INPUT
 
-	  it "can be constructed from a string description" do
+    it "can be constructed from a string description" do
       grid = Grid.new(input)
       assert_equal(3, grid.width)
       assert_equal(4, grid.height)
@@ -142,8 +160,13 @@ if ARGV[0] != "run"
     end
   end
 else
-  # part 1
   input = File.read(File.join(__dir__, "day22.txt"))
   grid = Grid.new(input)
+  puts "grid: #{grid.width}x#{grid.height}"
+
+  # part 1
   puts "part 1: #{grid.viable_pairs.size}"
+
+  # part 2
+  puts grid.inspect
 end
