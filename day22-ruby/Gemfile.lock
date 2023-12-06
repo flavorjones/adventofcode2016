@@ -1,0 +1,15 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    minitest (5.20.0)
+    minitest-great_expectations (0.0.5)
+
+PLATFORMS
+  x86_64-linux
+
+DEPENDENCIES
+  minitest
+  minitest-great_expectations
+
+BUNDLED WITH
+   2.4.22
